@@ -1,0 +1,6 @@
+on: 0.2
+
+phases:
+  build:
+    commands:
+      - ./gradlew assembleDebug

@@ -26,8 +26,10 @@ public class Application extends MultiDexApplication {
     public void onCreate() {
         super.onCreate();
 
-        registerActivityLifecycleCallbacks(new ActivityLifeCycle());
+        // Initialize the AWS Provider
+        AWSProvider.initialize(getApplicationContext());
 
+        registerActivityLifecycleCallbacks(new ActivityLifeCycle());
     }
 }
 
@@ -42,6 +44,8 @@ class ActivityLifeCycle implements android.app.Application.ActivityLifecycleCall
     public void onActivityStarted(Activity activity) {
         if (depth == 0) {
             Log.d("ActivityLifeCycle", "Application entered foreground");
+            AWSProvider.getInstance().getPinpointManager().getSessionClient().startSession();
+            AWSProvider.getInstance().getPinpointManager().getAnalyticsClient().submitEvents();
         }
         depth++;
     }
@@ -61,6 +65,8 @@ class ActivityLifeCycle implements android.app.Application.ActivityLifecycleCall
         depth--;
         if (depth == 0) {
             Log.d("ActivityLifeCycle", "Application entered background");
+            AWSProvider.getInstance().getPinpointManager().getSessionClient().stopSession();
+            AWSProvider.getInstance().getPinpointManager().getAnalyticsClient().submitEvents();
         }
 
     }

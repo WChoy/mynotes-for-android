@@ -12,6 +12,7 @@
  */
 package com.amazonaws.mobile.samples.mynotes;
 
+import android.content.AsyncQueryHandler;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
@@ -20,6 +21,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -27,6 +29,8 @@ import android.widget.EditText;
 
 import com.amazonaws.mobile.samples.mynotes.data.Note;
 import com.amazonaws.mobile.samples.mynotes.data.NotesContentContract;
+import com.amazonaws.mobileconnectors.pinpoint.analytics.AnalyticsClient;
+import com.amazonaws.mobileconnectors.pinpoint.analytics.AnalyticsEvent;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -111,6 +115,15 @@ public class NoteDetailFragment extends Fragment {
         } else {
             mItem = new Note();
             isUpdate = false;
+
+            // Send Custom Event to Amazon Pinpoint
+            final AnalyticsClient mgr = AWSProvider.getInstance()
+                    .getPinpointManager()
+                    .getAnalyticsClient();
+            final AnalyticsEvent evt = mgr.createEvent("AddNote")
+                    .withAttribute("noteId", mItem.getNoteId());
+            mgr.recordEvent(evt);
+            mgr.submitEvents();
         }
 
         // Start the timer for the delayed start
@@ -148,11 +161,33 @@ public class NoteDetailFragment extends Fragment {
         // Convert to ContentValues and store in the database.
         if (isUpdated) {
             ContentValues values = mItem.toContentValues();
+            AsyncQueryHandler queryHandler = new AsyncQueryHandler(contentResolver) {
+                @Override
+                protected void onInsertComplete(int token, Object cookie, Uri uri) {
+                    super.onInsertComplete(token, cookie, uri);
+                    Log.d("NoteDetailFragment", "insert completed");
+                }
+
+                @Override
+                protected void onUpdateComplete(int token, Object cookie, int result) {
+                    super.onUpdateComplete(token, cookie, result);
+                    Log.d("NoteDetailFragment", "update completed");
+                }
+            };
             if (isUpdate) {
-                contentResolver.update(itemUri, values, null, null);
+                queryHandler.startUpdate(1, null, itemUri, values, null, null);
             } else {
-                itemUri = contentResolver.insert(NotesContentContract.Notes.CONTENT_URI, values);
+                queryHandler.startInsert(1, null, NotesContentContract.Notes.CONTENT_URI, values);
                 isUpdate = true;    // Anything from now on is an update
+
+                // Send Custom Event to Amazon Pinpoint
+                final AnalyticsClient mgr = AWSProvider.getInstance()
+                        .getPinpointManager()
+                        .getAnalyticsClient();
+                final AnalyticsEvent evt = mgr.createEvent("AddNote")
+                        .withAttribute("noteId", mItem.getNoteId());
+                mgr.recordEvent(evt);
+                mgr.submitEvents();
             }
         }
     }
